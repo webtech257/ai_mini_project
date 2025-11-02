@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Interactive N-Queens Game</title>
+    <style>
+        /* 🌈 Background Gradient */
+        body {
+            font-family: 'Poppins', sans-serif;
+            text-align: center;
+            background: linear-gradient(135deg, #4f46e5, #06b6d4, #10b981);
+            background-size: 400% 400%;
+            animation: gradientShift 10s ease infinite;
+            color: white;
+            margin: 0;
+            overflow-x: hidden;
+        }
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-top: 30px;
+            text-shadow: 2px 2px 8px rgba(0,0,0,0.3);
+            animation: floatTitle 3s ease-in-out infinite alternate;
+        }
+        @keyframes floatTitle {
+            from { transform: translateY(0); }
+            to { transform: translateY(-8px); }
+        }
+
+        label, button {
+            font-size: 1rem;
+            font-weight: bold;
+            margin: 10px;
+        }
+
+        /* 🎮 Buttons */
+        button {
+            background: linear-gradient(90deg, #3b82f6, #06b6d4);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: 0.3s ease;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+        button:hover {
+            background: linear-gradient(90deg, #06b6d4, #3b82f6);
+            transform: scale(1.1);
+            box-shadow: 0 0 20px rgba(6, 182, 212, 0.6);
+        }
+
+        /* ♟️ Chess Board */
+        table {
+            border-collapse: collapse;
+            margin: 20px auto;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: transform 0.3s ease;
+        }
+        table:hover {
+            transform: scale(1.02);
+        }
+        td {
+            width: 60px;
+            height: 60px;
+            text-align: center;
+            vertical-align: middle;
+            font-size: 32px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .white { background-color: rgba(255, 255, 255, 0.7); }
+        .gray { background-color: rgba(0, 0, 0, 0.4); }
+
+        /* 👑 Queen Styling */
+        .queen {
+            color: #facc15;
+            text-shadow: 0 0 15px #fde047, 0 0 25px #fbbf24;
+            animation: glowQueen 1.5s infinite alternate;
+        }
+        @keyframes glowQueen {
+            from { text-shadow: 0 0 10px #fde047; }
+            to { text-shadow: 0 0 25px #facc15, 0 0 40px #fbbf24; }
+        }
+
+        /* ❌ Conflict cells */
+        .conflict {
+            background-color: rgba(239, 68, 68, 0.8) !important;
+            animation: pulseConflict 0.8s infinite alternate;
+        }
+        @keyframes pulseConflict {
+            from { box-shadow: 0 0 5px #f87171; }
+            to { box-shadow: 0 0 20px #ef4444; }
+        }
+
+        /* ✅ Safe Hint */
+        .safe {
+            background-color: rgba(34, 197, 94, 0.7) !important;
+            box-shadow: 0 0 15px #4ade80;
+        }
+
+        /* ⚡ Status */
+        #status {
+            font-weight: bold;
+            margin-top: 15px;
+            font-size: 1.2rem;
+            color: #f9fafb;
+            text-shadow: 1px 1px 5px rgba(0,0,0,0.3);
+        }
+    </style>
+</head>
+<body>
+<h1>♛ Interactive N-Queens Game ♛</h1>
+<label>N: <input type="number" id="n-value" value="8" min="4" max="12" style="padding:5px;border-radius:8px;border:none;"></label>
+<button onclick="resetBoard()">Reset</button>
+<button onclick="showHint()">Hint</button>
+<button onclick="aiSolveStep()">AI Solve Step</button>
+
+<div id="board"></div>
+<div id="status"></div>
+
+<script>
+let n = 8;
+let board = [];
+let table;
+
+function createEmptyBoard(size) {
+    n = size;
+    board = Array(n).fill(-1);
+    const boardDiv = document.getElementById("board");
+    boardDiv.innerHTML = "";
+    table = document.createElement("table");
+    for (let i = 0; i < n; i++) {
+        let row = table.insertRow();
+        for (let j = 0; j < n; j++) {
+            let cell = row.insertCell();
+            cell.className = (i + j) % 2 === 0 ? "white" : "gray";
+            cell.addEventListener('click', () => placeQueen(i, j));
+        }
+    }
+    boardDiv.appendChild(table);
+    updateStatus("Place queens on the board!");
+}
+
+function placeQueen(row, col) {
+    // toggle queen placement
+    if (board[row] === col) board[row] = -1;
+    else board[row] = col;
+
+    drawBoard();
+    checkSolution();
+}
+
+function drawBoard() {
+    // clear board visuals
+    for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n; j++) {
+            let cell = table.rows[i].cells[j];
+            cell.className = (i + j) % 2 === 0 ? "white" : "gray";
+            cell.innerHTML = '';
+        }
+    }
+
+    // place queens
+    for (let i = 0; i < n; i++) {
+        if (board[i] !== -1) {
+            const cell = table.rows[i].cells[board[i]];
+            cell.innerHTML = "♛";
+            cell.classList.add("queen");
+        }
+    }
+
+    // mark conflicts dynamically
+    markConflicts();
+}
+
+function markConflicts() {
+    // reset conflicts
+    for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n; j++) {
+            table.rows[i].cells[j].classList.remove("conflict");
+        }
+    }
+
+    // find all pairs of queens in conflict
+    for (let i = 0; i < n; i++) {
+        if (board[i] === -1) continue;
+        for (let k = i + 1; k < n; k++) {
+            if (board[k] === -1) continue;
+
+            let r1 = i, c1 = board[i];
+            let r2 = k, c2 = board[k];
+
+            // same column or diagonal
+            if (c1 === c2 || Math.abs(r1 - r2) === Math.abs(c1 - c2)) {
+                table.rows[r1].cells[c1].classList.add("conflict");
+                table.rows[r2].cells[c2].classList.add("conflict");
+            }
+        }
+    }
+}
+
+function isSafe(row, col) {
+    for (let i = 0; i < n; i++) {
+        if (i !== row && board[i] !== -1) {
+            let c = board[i];
+            if (c === col || Math.abs(c - col) === Math.abs(i - row)) return false;
+        }
+    }
+    return true;
+}
+
+function checkSolution() {
+    if (board.every(c => c !== -1) && board.every((c, r) => isSafe(r, c))) {
+        updateStatus("🎉 Congratulations! You solved the puzzle!");
+    } else {
+        updateStatus("Keep going...");
+    }
+}
+
+function updateStatus(msg) {
+    document.getElementById("status").innerText = msg;
+}
+
+function resetBoard() {
+    createEmptyBoard(parseInt(document.getElementById("n-value").value));
+}
+
+function showHint() {
+    for (let r = 0; r < n; r++) {
+        if (board[r] === -1) {
+            for (let c = 0; c < n; c++) {
+                if (isSafe(r, c)) {
+                    table.rows[r].cells[c].classList.add("safe");
+                    setTimeout(drawBoard, 1200);
+                    return;
+                }
+            }
+        }
+    }
+    updateStatus("No hints available!");
+}
+
+function aiSolveStep() {
+    for (let r = 0; r < n; r++) {
+        if (board[r] === -1) {
+            for (let c = 0; c < n; c++) {
+                if (isSafe(r, c)) {
+                    board[r] = c;
+                    drawBoard();
+                    checkSolution();
+                    return;
+                }
+            }
+        }
+    }
+    updateStatus("AI cannot place more queens!");
+}
+
+// ✅ Initialize after page loads
+window.onload = function() {
+    createEmptyBoard(8);
+};
+</script>
+</body>
+</html>
